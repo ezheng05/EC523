@@ -19,6 +19,7 @@ The framework handles the extreme sparsity and asynchronous nature of wearable-E
    * Will utilize an $L_1$ sparsity penalty to disentangle the fused latent space into independent causal drivers of health.
 
 ## Repository Structure
+```text
 ├── models/
 │   ├── DL_project.ipynb    # PyTorch implementation of TCN and Missingness Gate
 │   └── ...                  # Future VAE architectures
