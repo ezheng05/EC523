@@ -26,6 +26,7 @@ The framework handles the extreme sparsity and asynchronous nature of wearable-E
 ├── notebooks/
 │   └── data_extraction.md   # Documentation for All of Us BigQuery SQL extraction
 ├── README.md
+```
 
 ## Getting Started
 
