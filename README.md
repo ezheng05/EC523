@@ -56,4 +56,3 @@ Output Latent Space (Z) Shape: torch.Size([32, 16])
 
 ## Acknowledgments
 Developed for EC523 (Deep Learning) at Boston University. Data access provided by the NIH *All of Us* Research Program.
-```
