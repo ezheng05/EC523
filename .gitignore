@@ -1,0 +1,22 @@
+# macOS
+.DS_Store
+
+# dataset (2.9GB)
+globem-dataset-multi-year-datasets-for-longitudinal-human-behavior-modeling-generalization-1.1/
+
+# colab/local scratch files
+DL_Project (1).ipynb
+dl_project.py
+CLAUDE.md
+
+# project documents
+*.docx
+
+# model checkpoints
+checkpoints/
+
+# python
+__pycache__/
+*.pyc
+*.pyo
+.ipynb_checkpoints/
