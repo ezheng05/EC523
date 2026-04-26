@@ -102,50 +102,71 @@ class GLOBEM_MultiTaskDataset(Dataset):
 
 
 def make_splits(cohort_dirs, seq_len=30, val_ratio=0.15, test_ratio=0.15, seed=42):
-    """build train/val/test datasets with shared feat_cols and norm_stats from train"""
+    """build train/val/test datasets — loads each cohort only once"""
     rng = np.random.default_rng(seed)
 
-    # collect all user ids per cohort for stratified split
-    all_users = []
-    cohort_labels = []
-    for i, d in enumerate(cohort_dirs):
-        _, survey = _load_cohort(d)
-        all_users.extend(survey["pid"].unique())
-        cohort_labels.extend([i] * len(survey["pid"].unique()))
+    # load all cohorts once
+    print("loading cohorts...")
+    rapids_list, survey_list = [], []
+    for d in cohort_dirs:
+        print(f"  {os.path.basename(d)}")
+        r, s = _load_cohort(d)
+        rapids_list.append(r)
+        survey_list.append(s)
 
+    feat_cols = _get_shared_cols(rapids_list)
+    print(f"shared features: {len(feat_cols)}")
+
+    # collect user IDs
+    all_users, cohort_labels = [], []
+    for i, s in enumerate(survey_list):
+        uids = s["pid"].unique()
+        all_users.extend(uids)
+        cohort_labels.extend([i] * len(uids))
     all_users = np.array(all_users)
-    cohort_labels = np.array(cohort_labels)
 
-    # stratify by cohort
+    # random user-level split
     n = len(all_users)
     idx = rng.permutation(n)
     n_test = int(n * test_ratio)
     n_val = int(n * val_ratio)
+    train_users = set(all_users[idx[n_test + n_val:]])
+    val_users   = set(all_users[idx[n_test:n_test + n_val]])
+    test_users  = set(all_users[idx[:n_test]])
 
-    test_idx = idx[:n_test]
-    val_idx = idx[n_test:n_test + n_val]
-    train_idx = idx[n_test + n_val:]
+    # merge all data once, keeping only needed columns
+    all_rapids = pd.concat(
+        [r[["pid", "date"] + feat_cols] for r in rapids_list],
+        ignore_index=True
+    )
+    all_survey = pd.concat(survey_list, ignore_index=True)
+    valid_pids = set(all_rapids["pid"].unique())
+    all_survey = all_survey[all_survey["pid"].isin(valid_pids)]
 
-    # build per-cohort user lists for each split
-    def _filter_cohort_users(split_idx, cohort_i):
-        uids = set(all_users[split_idx][cohort_labels[split_idx] == cohort_i])
-        return uids
+    # normalize using train split stats only (no leakage)
+    train_rapids = all_rapids[all_rapids["pid"].isin(train_users)]
+    means = train_rapids[feat_cols].mean()
+    stds  = train_rapids[feat_cols].std().replace(0, 1)
+    norm_stats = (means, stds)
 
-    # we build datasets by passing filtered cohort dirs and restricting by user
-    # simpler: build one full dataset, then split by user index
-    full_ds = GLOBEM_MultiTaskDataset(cohort_dirs, seq_len=seq_len)
-    feat_cols = full_ds.feat_cols
-    norm_stats = full_ds.norm_stats
+    all_rapids = all_rapids.copy()
+    all_rapids[feat_cols] = (all_rapids[feat_cols] - means) / stds
+    all_rapids[feat_cols] = all_rapids[feat_cols].fillna(0.0)
 
-    def _subset(user_idx_arr):
+    def _make_subset(user_set):
         ds = GLOBEM_MultiTaskDataset.__new__(GLOBEM_MultiTaskDataset)
-        ds.seq_len = full_ds.seq_len
+        ds.seq_len   = seq_len
         ds.feat_cols = feat_cols
-        ds.feat_dim = full_ds.feat_dim
-        ds.rapids = full_ds.rapids
+        ds.feat_dim  = len(feat_cols)
         ds.norm_stats = norm_stats
-        ds.survey = full_ds.survey[full_ds.survey["pid"].isin(all_users[user_idx_arr])]
-        ds.users = ds.survey["pid"].unique()
+        ds.rapids  = all_rapids[all_rapids["pid"].isin(user_set)]
+        ds.survey  = all_survey[all_survey["pid"].isin(user_set)]
+        ds.users   = ds.survey["pid"].unique()
         return ds
 
-    return _subset(train_idx), _subset(val_idx), _subset(test_idx)
+    train_ds = _make_subset(train_users)
+    val_ds   = _make_subset(val_users)
+    test_ds  = _make_subset(test_users)
+
+    print(f"split: train={len(train_ds)} val={len(val_ds)} test={len(test_ds)}")
+    return train_ds, val_ds, test_ds
