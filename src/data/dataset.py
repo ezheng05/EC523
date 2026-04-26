@@ -10,10 +10,27 @@ IGNORE_COLS = {"pid", "date", "uid"}
 
 
 def _load_cohort(cohort_dir):
-    """load and clean rapids + pre + post for one cohort, return merged df"""
+    """load and clean rapids + pre + post for one cohort, return (rapids, survey) or (None, None)"""
     rapids = pd.read_csv(os.path.join(cohort_dir, "FeatureData", "rapids.csv"), low_memory=False)
     post = pd.read_csv(os.path.join(cohort_dir, "SurveyData", "post.csv"))
-    pre = pd.read_csv(os.path.join(cohort_dir, "SurveyData", "pre.csv"))
+    pre  = pd.read_csv(os.path.join(cohort_dir, "SurveyData", "pre.csv"))
+
+    missing_post = [c for c in TARGET_COLS   if c not in post.columns]
+    missing_pre  = [c for c in BASELINE_COLS if c not in pre.columns]
+
+    if missing_post or missing_pre:
+        # print what mental-health-related columns do exist to help diagnose
+        mh_keywords = ("cesd", "stai", "pss", "phq", "gad", "dep", "anx", "stress")
+        avail_post = [c for c in post.columns if any(k in c.lower() for k in mh_keywords)]
+        avail_pre  = [c for c in pre.columns  if any(k in c.lower() for k in mh_keywords)]
+        print(f"  skipping {os.path.basename(cohort_dir)}: column mismatch")
+        if missing_post:
+            print(f"    post.csv missing: {missing_post}")
+            print(f"    available mh cols in post: {avail_post}")
+        if missing_pre:
+            print(f"    pre.csv missing: {missing_pre}")
+            print(f"    available mh cols in pre:  {avail_pre}")
+        return None, None
 
     survey = pd.merge(post, pre, on="pid", how="inner")
     survey = survey.dropna(subset=TARGET_COLS + BASELINE_COLS)
@@ -105,14 +122,19 @@ def make_splits(cohort_dirs, seq_len=30, val_ratio=0.15, test_ratio=0.15, seed=4
     """build train/val/test datasets — loads each cohort only once"""
     rng = np.random.default_rng(seed)
 
-    # load all cohorts once
+    # load all cohorts once, skip any missing required columns
     print("loading cohorts...")
     rapids_list, survey_list = [], []
     for d in cohort_dirs:
         print(f"  {os.path.basename(d)}")
         r, s = _load_cohort(d)
+        if r is None:
+            continue
         rapids_list.append(r)
         survey_list.append(s)
+
+    if not rapids_list:
+        raise RuntimeError("no cohorts loaded — check column names above")
 
     feat_cols = _get_shared_cols(rapids_list)
     print(f"shared features: {len(feat_cols)}")
