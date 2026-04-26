@@ -4,33 +4,53 @@ import pandas as pd
 import torch
 from torch.utils.data import Dataset
 
-TARGET_COLS = ["CESD_10items_POST", "STAIS_POST", "PSS_10items_POST"]
-BASELINE_COLS = ["CESD_10items_PRE", "STAIS_PRE", "PSS_10items_PRE"]
-IGNORE_COLS = {"pid", "date", "uid"}
+# canonical names used throughout — cohort-specific names are mapped to these on load
+TARGET_COLS   = ["depression_POST", "anxiety_POST", "stress_POST"]
+BASELINE_COLS = ["depression_PRE",  "anxiety_PRE",  "stress_PRE"]
+IGNORE_COLS   = {"pid", "date", "uid"}
+
+# fallback candidates per target (first match wins)
+_TARGET_CANDIDATES = [
+    ["CESD_10items_POST", "CESD_9items_POST"],   # depression
+    ["STAIS_POST", "STAI_POST"],                  # anxiety
+    ["PSS_10items_POST"],                          # stress
+]
+_BASELINE_CANDIDATES = [
+    ["CESD_10items_PRE", "CESD_9items_PRE"],     # depression
+    ["STAIS_PRE", "STAI_PRE"],                    # anxiety
+    ["PSS_10items_PRE"],                           # stress
+]
+
+
+def _resolve_rename(df, canon_names, candidate_lists):
+    """return rename dict mapping first-found candidate -> canonical name, or None if any missing"""
+    rename = {}
+    for canon, clist in zip(canon_names, candidate_lists):
+        found = next((c for c in clist if c in df.columns), None)
+        if found is None:
+            return None, clist
+        rename[found] = canon
+    return rename, None
 
 
 def _load_cohort(cohort_dir):
     """load and clean rapids + pre + post for one cohort, return (rapids, survey) or (None, None)"""
     rapids = pd.read_csv(os.path.join(cohort_dir, "FeatureData", "rapids.csv"), low_memory=False)
-    post = pd.read_csv(os.path.join(cohort_dir, "SurveyData", "post.csv"))
-    pre  = pd.read_csv(os.path.join(cohort_dir, "SurveyData", "pre.csv"))
+    post   = pd.read_csv(os.path.join(cohort_dir, "SurveyData", "post.csv"))
+    pre    = pd.read_csv(os.path.join(cohort_dir, "SurveyData", "pre.csv"))
 
-    missing_post = [c for c in TARGET_COLS   if c not in post.columns]
-    missing_pre  = [c for c in BASELINE_COLS if c not in pre.columns]
-
-    if missing_post or missing_pre:
-        # print what mental-health-related columns do exist to help diagnose
-        mh_keywords = ("cesd", "stai", "pss", "phq", "gad", "dep", "anx", "stress")
-        avail_post = [c for c in post.columns if any(k in c.lower() for k in mh_keywords)]
-        avail_pre  = [c for c in pre.columns  if any(k in c.lower() for k in mh_keywords)]
-        print(f"  skipping {os.path.basename(cohort_dir)}: column mismatch")
-        if missing_post:
-            print(f"    post.csv missing: {missing_post}")
-            print(f"    available mh cols in post: {avail_post}")
-        if missing_pre:
-            print(f"    pre.csv missing: {missing_pre}")
-            print(f"    available mh cols in pre:  {avail_pre}")
+    post_rename, missing = _resolve_rename(post, TARGET_COLS, _TARGET_CANDIDATES)
+    if missing:
+        print(f"  skipping {os.path.basename(cohort_dir)}: post.csv has none of {missing}")
         return None, None
+
+    pre_rename, missing = _resolve_rename(pre, BASELINE_COLS, _BASELINE_CANDIDATES)
+    if missing:
+        print(f"  skipping {os.path.basename(cohort_dir)}: pre.csv has none of {missing}")
+        return None, None
+
+    post = post.rename(columns=post_rename)
+    pre  = pre.rename(columns=pre_rename)
 
     survey = pd.merge(post, pre, on="pid", how="inner")
     survey = survey.dropna(subset=TARGET_COLS + BASELINE_COLS)
