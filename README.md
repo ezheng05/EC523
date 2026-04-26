@@ -1,58 +1,97 @@
-### README.md
+# T-CRL: Temporal Causal Representation Learning for Mental Health Prediction
 
-# Temporal Causal Representation Learning (T-CRL) for Behavioral Health
+EC523 Deep Learning — Boston University  
+Alex Chen & Ellen Zheng ({afchen, ellenz}@bu.edu)
 
-## Project Overview
-This repository contains the PyTorch implementation of a Multimodal Temporal Causal Representation Learning (T-CRL) framework. The model is designed to fuse high frequency, longitudinal wearable data (e.g., minute/hourly-level Fitbit streams) with static Electronic Health Record (EHR) events to predict the onset of discrete cardiometabolic conditions (e.g., Type 2 Diabetes, Essential Hypertension).
+## Overview
 
-**Current Status:** Stage 1 Multimodal Encoder completed and validated on synthetic data. Awaiting final dataset clearance from the NIH *All of Us* Researcher Workbench for empirical training.
+PyTorch implementation of T-CRL, a multimodal causal representation learning framework that predicts depression (CESD-10), anxiety (STAIS), and stress (PSS-10) from longitudinal smartphone sensor data. The model fuses RAPIDS sensor time series with pre-semester survey baselines and uses a β-VAE with a learnable adjacency matrix to discover causal structure in the latent space.
 
-## Architecture Highlights
-The framework handles the extreme sparsity and asynchronous nature of wearable-EHR datasets using a two-stage approach:
+Key design: a **Sigmoid Missingness Gate** treats missing sensor data as an informative signal (MMNAR — Missing Not At Random) rather than a nuisance, weighting temporal features by their reliability before fusing with clinical baselines.
 
-1. **Stage 1: Multimodal Temporal Encoder**
-   * **Temporal Convolutional Network (TCN):** Extracts local, shift invariant temporal patterns from hourly wearable sequences (heart rate, steps).
-   * **Sigmoid Missingness Gate:** A specialized gating mechanism that leverages missingness masks ($\delta$) as informative features, weighing the reliability of the temporal latent representation before pooling.
-   * **EHR Fusion:** Concatenates the dynamically weighted temporal features with a static dense embedding of clinical baseline measurements.
-
-2. **Stage 2: Causal Discovery ($\beta$-VAE)** *(In Progress)*
-   * Will utilize an $L_1$ sparsity penalty to disentangle the fused latent space into independent causal drivers of health.
+**Dataset:** [GLOBEM](https://physionet.org/content/globem/1.1/) longitudinal smartphone sensor dataset (INS-W_1 through INS-W_4, ~400–700 participants across 4 semester cohorts).
 
 ## Repository Structure
-```text
-├── models/
-│   ├── DL_project.ipynb    # PyTorch implementation of TCN and Missingness Gate
-│   └── ...                  # Future VAE architectures
+
+```
+├── src/
+│   ├── data/dataset.py        # multi-cohort dataset, train/val/test splits
+│   ├── models/
+│   │   ├── components.py      # TCN_Block, MissingnessFusionGate
+│   │   ├── encoder.py         # TCRL_Encoder, Baseline_Standard_Encoder
+│   │   └── vae.py             # TCRL_BetaVAE
+│   ├── training/
+│   │   ├── loss.py            # combined MSE + KL + L1 sparsity loss
+│   │   └── trainer.py         # train_epoch, evaluate
+│   └── utils/metrics.py       # RMSE, MAE, Pearson R, R², AUC-ROC, AUC-PR
+├── config/config.py           # ModelConfig dataclass (all hyperparameters)
 ├── notebooks/
-│   └── data_extraction.md   # Documentation for All of Us BigQuery SQL extraction
-├── README.md
+│   └── DL_Project_colab.ipynb # Colab notebook (mounts Drive, imports src/)
+├── train.py                   # local training entry point
+└── requirements.txt
 ```
 
-## Getting Started
-
-### Prerequisites
-* Python 3.8+
-* PyTorch
-* NumPy
-
-### Running the Synthetic Validation
-Currently, the pipeline includes a synthetic data generator that simulates the exact dimensionalities and informative missingness properties of the target demographic. This is used to validate gradient flow and dimensional alignment.
+## Installation
 
 ```bash
-# Clone the repository
-git clone [https://github.com/ezheng05/tcrl-cardiometabolic.git](https://github.com/ezheng05/tcrl-cardiometabolic.git)
-cd tcrl-cardiometabolic
-
-# Run the Stage 1 Encoder forward pass
-python models/stage1_encoder.py
+git clone https://github.com/ezheng05/EC523.git
+cd EC523
+pip install -r requirements.txt
 ```
 
-*Expected Output:*
-```text
-Model initialized successfully.
-Input Shape (Fitbit): torch.Size([32, 24, 2])
-Output Latent Space (Z) Shape: torch.Size([32, 16])
+**Dependencies:** `torch`, `pandas>=1.5.3`, `numpy`, `matplotlib`, `seaborn`, `scikit-learn`
+
+## Training
+
+### Local
+
+```bash
+python train.py --data_root /path/to/globem-dataset-multi-year-datasets-for-longitudinal-human-behavior-modeling-generalization-1.1
 ```
 
-## Acknowledgments
-Developed for EC523 (Deep Learning) at Boston University. Data access provided by the NIH *All of Us* Research Program.
+Optional flags:
+```
+--cohorts INS-W_1 INS-W_2 INS-W_3 INS-W_4   # which cohorts to train on
+--epochs 100                                   # default 100
+--output_dir checkpoints/                      # where to save best model
+```
+
+### Google Colab
+
+Open `notebooks/DL_Project_colab.ipynb`. Set `REPO_ROOT` and `DATASET_ROOT` to your Drive paths, then run all cells.
+
+## Architecture
+
+```
+RAPIDS sensor CSV  →  GLOBEM_MultiTaskDataset  →  TCN_Block
+                                                       ↓
+                                             MissingnessFusionGate (δ mask)
+                                                       ↓
+PRE survey (CESD/STAIS/PSS baseline)  →  EHR MLP  →  TCRL_Encoder
+                                                       ↓
+                                               TCRL_BetaVAE
+                                          (μ, σ, adj matrix, z)
+                                                       ↓
+                                    3 predictions: depression, anxiety, stress
+```
+
+**Loss:** `L = MSE + β·KL + λ·||A||₁`  
+- β=2.0 (VAE regularization), λ=0.001 (sparsity on causal adjacency matrix A)
+
+**Training config:** Adam lr=0.002, 100 epochs, batch=16, latent_dim=3, seq_len=30 days
+
+## Evaluation
+
+Reports per-target metrics for depression, anxiety, and stress:
+- Regression: RMSE, MAE, Pearson R, R²
+- Classification (thresholded): AUC-ROC, AUC-PR  
+  (CESD-10 ≥ 10, STAIS ≥ 40, PSS-10 ≥ 14)
+
+Ablation: `Baseline_Standard_Encoder` (same architecture, missingness gate removed) runs automatically alongside T-CRL for comparison.
+
+## References
+
+- Liang et al., "CRL-MMNAR: Causal Representation Learning with Missing Not At Random Data"
+- Li et al., "CHiLD: Causal Health Inference from Longitudinal Data" (NeurIPS 2025)
+- Morioka & Hyvarinen, ICML 2024
+- Wiemken et al., "GLOBEM Dataset" (PhysioNet 2023)
