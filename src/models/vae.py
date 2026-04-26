@@ -11,9 +11,10 @@ class TCRL_BetaVAE(nn.Module):
         self.fc_mu = nn.Linear(h_dim, latent_dim)
         self.fc_logvar = nn.Linear(h_dim, latent_dim)
         self.pred_head = nn.Sequential(
-            nn.Linear(latent_dim, 8),
+            nn.Linear(latent_dim, latent_dim * 2),
             nn.ReLU(),
-            nn.Linear(8, num_targets),
+            nn.Dropout(0.2),
+            nn.Linear(latent_dim * 2, num_targets),
         )
         # learnable adjacency matrix for causal structure discovery
         self.adj = nn.Parameter(torch.randn(latent_dim, latent_dim))

@@ -12,8 +12,11 @@ class ModelConfig:
 
     # training
     lr: float = 0.002
+    weight_decay: float = 1e-4
     epochs: int = 100
     batch_size: int = 16
+    dropout: float = 0.2
+    early_stop_patience: int = 15  # epochs (checked every 10)
 
     # loss weights
     beta: float = 2.0
