@@ -5,20 +5,52 @@ import torch
 from torch.utils.data import Dataset
 
 # canonical names used throughout — cohort-specific names are mapped to these on load
-TARGET_COLS   = ["depression_POST", "anxiety_POST", "stress_POST"]
-BASELINE_COLS = ["depression_PRE",  "anxiety_PRE",  "stress_PRE"]
-IGNORE_COLS   = {"pid", "date", "uid"}
+TARGET_COLS = [
+    "depression_POST",
+    "anxiety_POST",
+    "stress_POST",
+    "loneliness_POST",
+    "mindfulness_POST",
+    "resilience_POST",
+    "erq_reappraisal_POST",
+    "erq_suppression_POST",
+    "social_support_POST",
+]
+BASELINE_COLS = [
+    "depression_PRE",
+    "anxiety_PRE",
+    "stress_PRE",
+    "loneliness_PRE",
+    "mindfulness_PRE",
+    "resilience_PRE",
+    "erq_reappraisal_PRE",
+    "erq_suppression_PRE",
+    "social_support_PRE",
+]
+IGNORE_COLS = {"pid", "date", "uid"}
 
 # fallback candidates per target (first match wins)
 _TARGET_CANDIDATES = [
-    ["CESD_10items_POST", "CESD_9items_POST"],   # depression
-    ["STAIS_POST", "STAI_POST"],                  # anxiety
-    ["PSS_10items_POST"],                          # stress
+    ["CESD_10items_POST", "CESD_9items_POST"],          # depression
+    ["STAIS_POST", "STAI_POST"],                         # anxiety
+    ["PSS_10items_POST"],                                 # stress
+    ["UCLA_10items_POST"],                                # loneliness
+    ["MAAS_7items_POST", "MAAS_15items_POST"],           # mindfulness
+    ["BRS_POST"],                                         # resilience
+    ["ERQ_reappraisal_POST"],                             # emotion regulation (reappraisal)
+    ["ERQ_suppression_POST"],                             # emotion regulation (suppression)
+    ["2waySSS_receiving_emotional_POST"],                 # social support
 ]
 _BASELINE_CANDIDATES = [
-    ["CESD_10items_PRE", "CESD_9items_PRE"],     # depression
-    ["STAIS_PRE", "STAI_PRE"],                    # anxiety
-    ["PSS_10items_PRE"],                           # stress
+    ["CESD_10items_PRE", "CESD_9items_PRE"],            # depression
+    ["STAIS_PRE", "STAI_PRE"],                           # anxiety
+    ["PSS_10items_PRE"],                                  # stress
+    ["UCLA_10items_PRE"],                                 # loneliness
+    ["MAAS_7items_PRE", "MAAS_15items_PRE"],             # mindfulness
+    ["BRS_PRE"],                                          # resilience
+    ["ERQ_reappraisal_PRE"],                              # emotion regulation (reappraisal)
+    ["ERQ_suppression_PRE"],                              # emotion regulation (suppression)
+    ["2waySSS_receiving_emotional_PRE"],                  # social support
 ]
 
 

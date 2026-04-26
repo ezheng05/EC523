@@ -1,15 +1,17 @@
-# T-CRL: Temporal Causal Representation Learning for Mental Health Prediction
+# T-CRL: Temporal Causal Representation Learning for Behavioral Outcome Prediction
 
 EC523 Deep Learning — Boston University  
 Alex Chen & Ellen Zheng ({afchen, ellenz}@bu.edu)
 
 ## Overview
 
-PyTorch implementation of T-CRL, a multimodal causal representation learning framework that predicts depression (CESD-10), anxiety (STAIS), and stress (PSS-10) from longitudinal smartphone sensor data. The model fuses RAPIDS sensor time series with pre-semester survey baselines and uses a β-VAE with a learnable adjacency matrix to discover causal structure in the latent space.
+PyTorch implementation of T-CRL, a multimodal causal representation learning framework that predicts 9 behavioral outcomes from longitudinal smartphone sensor data: depression, anxiety, stress, loneliness, mindfulness, resilience, emotion regulation (reappraisal & suppression), and social support. The model fuses RAPIDS sensor time series with pre-semester survey baselines and uses a β-VAE with a learnable adjacency matrix to discover causal structure in the latent space.
 
 Key design: a **Sigmoid Missingness Gate** treats missing sensor data as an informative signal (MMNAR — Missing Not At Random) rather than a nuisance, weighting temporal features by their reliability before fusing with clinical baselines.
 
 **Dataset:** [GLOBEM](https://physionet.org/content/globem/1.1/) longitudinal smartphone sensor dataset (INS-W_1 through INS-W_4, ~400–700 participants across 4 semester cohorts).
+
+**Targets:** depression (CESD), anxiety (STAI/STAIS), stress (PSS-10), loneliness (UCLA-10), mindfulness (MAAS), resilience (BRS), emotion regulation reappraisal (ERQ), emotion regulation suppression (ERQ), social support (2waySSS received emotional)
 
 ## Repository Structure
 
