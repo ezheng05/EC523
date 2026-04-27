@@ -2,7 +2,7 @@ import torch
 from .loss import tcrl_loss
 
 
-def train_epoch(model, loader, optimizer, device, beta=2.0, lam=0.001):
+def train_epoch(model, loader, optimizer, device, beta=2.0, lam=0.001, grad_clip=0.0):
     model.train()
     total, task_sum = 0.0, 0.0
 
@@ -12,6 +12,8 @@ def train_epoch(model, loader, optimizer, device, beta=2.0, lam=0.001):
         y_pred, mu, logvar, _ = model(x, mask, ehr)
         loss, t_loss, _, _ = tcrl_loss(y_pred, y, mu, logvar, model.adj, beta, lam)
         loss.backward()
+        if grad_clip > 0:
+            torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
         optimizer.step()
         total += loss.item()
         task_sum += t_loss.item()
