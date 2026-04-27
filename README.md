@@ -2,16 +2,17 @@
 
 Temporal Causal Representation Learning for behavioral outcome prediction from smartphone sensor data.
 
-EC523 Deep Learning — Boston University
+EC523 Deep Learning 
+Boston University
 Alex Chen & Ellen Zheng
 
-## what it does
+## What it does
 
 Predicts 5 end-of-semester mental health outcomes (depression, anxiety, stress, loneliness, resilience) from passively collected phone sensor data + a baseline survey. Trained on the [GLOBEM](https://physionet.org/content/globem/1.1/) dataset (4 cohorts, 657 students).
 
 The main idea: missing sensor data is treated as a signal, not noise. If a student stops using their phone, that pattern itself is informative. A residual missingness gate learns to use observation patterns rather than discarding them.
 
-## results
+## Results
 
 T-CRL vs baseline (same model, gate removed):
 
@@ -25,7 +26,7 @@ T-CRL vs baseline (same model, gate removed):
 
 Gate helps most on loneliness (+0.08 R²) where missingness patterns carry social isolation signal.
 
-## repo structure
+## Repo structure
 
 ```
 src/
@@ -41,11 +42,11 @@ src/
 config/config.py            # all hyperparameters
 notebooks/
   DL_Project_colab.ipynb    # primary notebook (Colab, mounts Drive)
-train.py                    # local CLI
+train.py                    # local CLI. training entry point
 requirements.txt
 ```
 
-## setup
+## Setup
 
 ```bash
 pip install -r requirements.txt
@@ -53,7 +54,7 @@ pip install -r requirements.txt
 
 needs: torch, pandas, numpy, matplotlib, seaborn, scikit-learn
 
-## running
+## Running
 
 **colab (recommended):** open `notebooks/DL_Project_colab.ipynb`, make sure the GLOBEM dataset is in your Google Drive, run all cells.
 
@@ -62,7 +63,7 @@ needs: torch, pandas, numpy, matplotlib, seaborn, scikit-learn
 python train.py --data_root /path/to/globem-dataset-...
 ```
 
-## how it works
+## How it works
 
 ```
 30-day sensor sequence (3390 features) --> TCN (Conv1d, k=3)
@@ -77,11 +78,11 @@ baseline PRE survey (5 scores) --> MLP --> concat --> encoder --> beta-VAE --> 5
                                                           (causal structure, L1 sparse)
 ```
 
-loss: `MSE + 0.05*KL + 0.001*L1(A)`
+Loss: `MSE + 0.05*KL + 0.001*L1(A)`
 
-training: Adam lr=0.001, batch=16, dropout=0.3, early stopping, gradient clipping. 70/15/15 user-level split, z-score normalization from train stats only.
+Training: Adam lr=0.001, batch=16, dropout=0.3, early stopping, gradient clipping. 70/15/15 user-level split, z-score normalization from train stats only.
 
-## references
+## References
 
 - Xu et al., "GLOBEM Dataset" (PhysioNet 2023)
 - Higgins et al., "beta-VAE" (ICLR 2017)
