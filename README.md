@@ -56,9 +56,9 @@ needs: torch, pandas, numpy, matplotlib, seaborn, scikit-learn
 
 ## Running
 
-**colab (recommended):** open `notebooks/DL_Project_colab.ipynb`, make sure the GLOBEM dataset is in your Google Drive, run all cells.
+**Colab (recommended):** open `notebooks/DL_Project_colab.ipynb`, make sure the GLOBEM dataset is in your Google Drive, run all cells.
 
-**local:**
+**Local:**
 ```bash
 python train.py --data_root /path/to/globem-dataset-...
 ```
