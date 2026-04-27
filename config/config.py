@@ -19,8 +19,9 @@ class ModelConfig:
     dropout: float = 0.3
     early_stop_patience: int = 15  # epochs (checked every 10)
 
-    # loss weights
-    beta: float = 2.0
+    # loss weights — beta is small because targets are z-normalized (task loss ~1)
+    # original beta=2.0 was for raw-scale task loss ~30; scaled down ~40x
+    beta: float = 0.05
     lambda_sparsity: float = 0.001
 
     # dataset
