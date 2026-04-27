@@ -11,6 +11,7 @@ class ModelConfig:
     seq_len: int = 30
 
     # training
+    seed: int = 42
     lr: float = 0.002
     weight_decay: float = 1e-4
     epochs: int = 100

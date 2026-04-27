@@ -1,5 +1,7 @@
 import os
 import argparse
+import random
+import numpy as np
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
@@ -10,6 +12,15 @@ from src.models.encoder import TCRL_Encoder, Baseline_Standard_Encoder
 from src.models.vae import TCRL_BetaVAE
 from src.training.trainer import train_epoch, evaluate
 from src.utils.metrics import compute_regression_metrics, compute_auc_metrics, print_metrics
+
+
+def set_global_seed(seed):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
 
 
 def build_cohort_dirs(data_root, cohorts):
@@ -26,7 +37,7 @@ def run(cfg, cohort_dirs, output_dir, device):
     print("building datasets...")
     train_ds, val_ds, test_ds = make_splits(
         cohort_dirs, seq_len=cfg.seq_len,
-        val_ratio=cfg.val_ratio, test_ratio=cfg.test_ratio
+        val_ratio=cfg.val_ratio, test_ratio=cfg.test_ratio, seed=cfg.seed
     )
 
     train_loader = DataLoader(train_ds, batch_size=cfg.batch_size, shuffle=True)
@@ -79,6 +90,8 @@ def main():
     cfg = ModelConfig()
     if args.epochs:
         cfg.epochs = args.epochs
+
+    set_global_seed(cfg.seed)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"using device: {device}")
