@@ -2,8 +2,8 @@
 
 Temporal Causal Representation Learning for behavioral outcome prediction from smartphone sensor data.
 
-EC523 Deep Learning 
-Boston University
+EC523 Deep Learning | Boston University
+
 Alex Chen & Ellen Zheng
 
 ## What it does
