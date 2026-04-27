@@ -11,6 +11,8 @@ CLAUDE.md
 
 # project documents
 *.docx
+project_concepts.md
+report_material.md
 
 # model checkpoints
 checkpoints/
