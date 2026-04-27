@@ -15,11 +15,16 @@ class TCN_Block(nn.Module):
 
 
 class MissingnessFusionGate(nn.Module):
-    """sigmoid gate that weights temporal features by observed missingness pattern"""
+    """residual sigmoid gate that amplifies temporal features by missingness pattern.
+
+    output = h * (1 + gate(mask)) — preserves the original signal while letting
+    well-observed time steps amplify their contribution. avoids zeroing out
+    features when the gate misfires (key issue with multiplicative-only gating).
+    """
 
     def __init__(self, mask_dim, hidden_dim):
         super().__init__()
         self.mask_mlp = nn.Sequential(nn.Linear(mask_dim, hidden_dim), nn.Sigmoid())
 
     def forward(self, h, delta_mask):
-        return h * self.mask_mlp(delta_mask)
+        return h * (1.0 + self.mask_mlp(delta_mask))

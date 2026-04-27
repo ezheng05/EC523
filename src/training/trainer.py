@@ -21,7 +21,8 @@ def train_epoch(model, loader, optimizer, device, beta=2.0, lam=0.001):
 
 
 @torch.no_grad()
-def evaluate(model, loader, device):
+def evaluate(model, loader, device, denormalize=True):
+    """returns (preds, targets) in original scale by default"""
     model.eval()
     preds, targets = [], []
 
@@ -31,4 +32,14 @@ def evaluate(model, loader, device):
         preds.append(y_pred.cpu())
         targets.append(y.cpu())
 
-    return torch.cat(preds), torch.cat(targets)
+    p = torch.cat(preds)
+    t = torch.cat(targets)
+
+    if denormalize and hasattr(loader.dataset, "target_norm_stats"):
+        means, stds = loader.dataset.target_norm_stats
+        m = torch.from_numpy(means).float()
+        s = torch.from_numpy(stds).float()
+        p = p * s + m
+        t = t * s + m
+
+    return p, t

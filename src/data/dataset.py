@@ -10,47 +10,31 @@ TARGET_COLS = [
     "anxiety_POST",
     "stress_POST",
     "loneliness_POST",
-    "mindfulness_POST",
     "resilience_POST",
-    "erq_reappraisal_POST",
-    "erq_suppression_POST",
-    "social_support_POST",
 ]
 BASELINE_COLS = [
     "depression_PRE",
     "anxiety_PRE",
     "stress_PRE",
     "loneliness_PRE",
-    "mindfulness_PRE",
     "resilience_PRE",
-    "erq_reappraisal_PRE",
-    "erq_suppression_PRE",
-    "social_support_PRE",
 ]
 IGNORE_COLS = {"pid", "date", "uid"}
 
 # fallback candidates per target (first match wins)
 _TARGET_CANDIDATES = [
-    ["CESD_10items_POST", "CESD_9items_POST"],          # depression
-    ["STAIS_POST", "STAI_POST"],                         # anxiety
-    ["PSS_10items_POST"],                                 # stress
-    ["UCLA_10items_POST"],                                # loneliness
-    ["MAAS_7items_POST", "MAAS_15items_POST"],           # mindfulness
-    ["BRS_POST"],                                         # resilience
-    ["ERQ_reappraisal_POST"],                             # emotion regulation (reappraisal)
-    ["ERQ_suppression_POST"],                             # emotion regulation (suppression)
-    ["2waySSS_receiving_emotional_POST"],                 # social support
+    ["CESD_10items_POST", "CESD_9items_POST"],   # depression
+    ["STAIS_POST", "STAI_POST"],                  # anxiety
+    ["PSS_10items_POST"],                          # stress
+    ["UCLA_10items_POST"],                         # loneliness
+    ["BRS_POST"],                                  # resilience
 ]
 _BASELINE_CANDIDATES = [
-    ["CESD_10items_PRE", "CESD_9items_PRE"],            # depression
-    ["STAIS_PRE", "STAI_PRE"],                           # anxiety
-    ["PSS_10items_PRE"],                                  # stress
-    ["UCLA_10items_PRE"],                                 # loneliness
-    ["MAAS_7items_PRE", "MAAS_15items_PRE"],             # mindfulness
-    ["BRS_PRE"],                                          # resilience
-    ["ERQ_reappraisal_PRE"],                              # emotion regulation (reappraisal)
-    ["ERQ_suppression_PRE"],                              # emotion regulation (suppression)
-    ["2waySSS_receiving_emotional_PRE"],                  # social support
+    ["CESD_10items_PRE", "CESD_9items_PRE"],     # depression
+    ["STAIS_PRE", "STAI_PRE"],                    # anxiety
+    ["PSS_10items_PRE"],                           # stress
+    ["UCLA_10items_PRE"],                          # loneliness
+    ["BRS_PRE"],                                   # resilience
 ]
 
 
@@ -154,8 +138,14 @@ class GLOBEM_MultiTaskDataset(Dataset):
         uid = self.users[idx]
         row = self.survey[self.survey["pid"] == uid].iloc[0]
 
-        y = torch.tensor(row[TARGET_COLS].values.astype(np.float32))
-        ehr = torch.tensor(row[BASELINE_COLS].values.astype(np.float32))
+        y_raw   = row[TARGET_COLS].values.astype(np.float32)
+        ehr_raw = row[BASELINE_COLS].values.astype(np.float32)
+
+        # normalize y and ehr using train-set stats (de-normalized at eval time)
+        y_means, y_stds = self.target_norm_stats
+        e_means, e_stds = self.ehr_norm_stats
+        y   = (y_raw   - y_means) / y_stds
+        ehr = (ehr_raw - e_means) / e_stds
 
         feats = self.rapids[self.rapids["pid"] == uid].sort_values("date")
         seq = feats[self.feat_cols].tail(self.seq_len).values
@@ -167,7 +157,12 @@ class GLOBEM_MultiTaskDataset(Dataset):
         mask = (~np.isnan(seq)).astype(np.float32)
         seq = np.nan_to_num(seq, nan=0.0).astype(np.float32)
 
-        return torch.from_numpy(seq), torch.from_numpy(mask), ehr, y
+        return (
+            torch.from_numpy(seq),
+            torch.from_numpy(mask),
+            torch.from_numpy(ehr.astype(np.float32)),
+            torch.from_numpy(y.astype(np.float32)),
+        )
 
 
 def make_splits(cohort_dirs, seq_len=30, val_ratio=0.15, test_ratio=0.15, seed=42):
@@ -176,14 +171,16 @@ def make_splits(cohort_dirs, seq_len=30, val_ratio=0.15, test_ratio=0.15, seed=4
 
     # load all cohorts once, skip any missing required columns
     print("loading cohorts...")
-    rapids_list, survey_list = [], []
+    rapids_list, survey_list, cohort_names = [], [], []
     for d in cohort_dirs:
-        print(f"  {os.path.basename(d)}")
+        name = os.path.basename(d)
+        print(f"  {name}")
         r, s = _load_cohort(d)
         if r is None:
             continue
         rapids_list.append(r)
         survey_list.append(s)
+        cohort_names.append(name)
 
     if not rapids_list:
         raise RuntimeError("no cohorts loaded — check column names above")
@@ -191,12 +188,15 @@ def make_splits(cohort_dirs, seq_len=30, val_ratio=0.15, test_ratio=0.15, seed=4
     feat_cols = _get_shared_cols(rapids_list)
     print(f"shared features: {len(feat_cols)}")
 
-    # collect user IDs
+    # collect user IDs and tag each pid with its cohort index
     all_users, cohort_labels = [], []
+    cohort_of = {}
     for i, s in enumerate(survey_list):
         uids = s["pid"].unique()
         all_users.extend(uids)
         cohort_labels.extend([i] * len(uids))
+        for u in uids:
+            cohort_of[u] = i
     all_users = np.array(all_users)
 
     # random user-level split
@@ -227,15 +227,26 @@ def make_splits(cohort_dirs, seq_len=30, val_ratio=0.15, test_ratio=0.15, seed=4
     all_rapids[feat_cols] = (all_rapids[feat_cols] - means) / stds
     all_rapids[feat_cols] = all_rapids[feat_cols].fillna(0.0)
 
+    # target and ehr normalization stats from train split only
+    train_survey = all_survey[all_survey["pid"].isin(train_users)]
+    target_means = train_survey[TARGET_COLS].mean().values.astype(np.float32)
+    target_stds  = train_survey[TARGET_COLS].std().replace(0, 1).values.astype(np.float32)
+    ehr_means    = train_survey[BASELINE_COLS].mean().values.astype(np.float32)
+    ehr_stds     = train_survey[BASELINE_COLS].std().replace(0, 1).values.astype(np.float32)
+
     def _make_subset(user_set):
         ds = GLOBEM_MultiTaskDataset.__new__(GLOBEM_MultiTaskDataset)
         ds.seq_len   = seq_len
         ds.feat_cols = feat_cols
         ds.feat_dim  = len(feat_cols)
         ds.norm_stats = norm_stats
+        ds.target_norm_stats = (target_means, target_stds)
+        ds.ehr_norm_stats    = (ehr_means, ehr_stds)
         ds.rapids  = all_rapids[all_rapids["pid"].isin(user_set)]
         ds.survey  = all_survey[all_survey["pid"].isin(user_set)]
         ds.users   = ds.survey["pid"].unique()
+        ds.cohort_of    = cohort_of
+        ds.cohort_names = cohort_names
         return ds
 
     train_ds = _make_subset(train_users)
