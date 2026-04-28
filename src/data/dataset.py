@@ -4,7 +4,7 @@ import pandas as pd
 import torch
 from torch.utils.data import Dataset
 
-# canonical names used throughout — cohort-specific names are mapped to these on load
+# canonical names used throughout. cohort specific names are mapped to these on load
 TARGET_COLS = [
     "depression_POST",
     "anxiety_POST",
@@ -39,7 +39,7 @@ _BASELINE_CANDIDATES = [
 
 
 def _resolve_rename(df, canon_names, candidate_lists):
-    """return rename dict mapping first-found candidate -> canonical name, or None if any missing"""
+    """return rename dict mapping first found candidate -> canonical name, or None if any missing"""
     rename = {}
     for canon, clist in zip(canon_names, candidate_lists):
         found = next((c for c in clist if c in df.columns), None)
@@ -93,7 +93,7 @@ def _get_shared_cols(rapids_list):
 class GLOBEM_MultiTaskDataset(Dataset):
     def __init__(self, cohort_dirs, seq_len=30, feat_cols=None, norm_stats=None):
         """
-        cohort_dirs: list of cohort root paths (e.g. ['.../INS-W_1', ...])
+        cohort_dirs: list of cohort root paths
         feat_cols: if provided, use this column list (for val/test consistency)
         norm_stats: (means, stds) tuple for val/test normalization
         """
@@ -199,7 +199,7 @@ def make_splits(cohort_dirs, seq_len=30, val_ratio=0.15, test_ratio=0.15, seed=4
             cohort_of[u] = i
     all_users = np.array(all_users)
 
-    # random user-level split
+    # random user level split
     n = len(all_users)
     idx = rng.permutation(n)
     n_test = int(n * test_ratio)
