@@ -21,8 +21,8 @@ class ModelConfig:
     early_stop_patience: int = 12
     grad_clip: float = 1.0
 
-    # loss weights — beta is small because targets are z-normalized (task loss ~1)
-    # original beta=2.0 was for raw-scale task loss ~30; scaled down ~40x
+    # loss weights — beta is small because targets are z normalized (task loss ~1)
+    # original beta=2.0 was for raw scale task loss ~30; scaled down ~40x
     beta: float = 0.05
     lambda_sparsity: float = 0.001
 
